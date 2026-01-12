@@ -2,7 +2,7 @@
 """
 Power Platform Solution Component Exporter - Master Analysis Version
 
-This version:
+This performs the following action:
 1. Collects ALL solution data in memory first
 2. Performs cross-solution analysis
 3. Creates individual solution workbooks
