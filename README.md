@@ -1,4 +1,4 @@
-# Power Platform Solution Scraper - Usage Guide
+# Power Platform Solution Exporter - Usage Guide
 
 ## Overview
 
@@ -10,6 +10,7 @@ This tool analyzes all solutions in a Power Platform environment and creates com
    - Component reuse analysis (components in multiple solutions)
    - Table ownership map
    - Environment-wide statistics
+   - **Unmanaged components (not in any solution)** - Tables, Flows, Apps, Web Resources, Forms, Option Sets
 
 2. **Individual Solution Workbooks** - Detailed breakdowns for each solution with:
    - Solution summary metadata
@@ -21,6 +22,7 @@ This tool analyzes all solutions in a Power Platform environment and creates com
 - ✅ **Logical names and schema names** for all components (find components by name, not GUID)
 - ✅ **Actual record counts** using FetchXML aggregate (unlimited, works with millions of records)
 - ✅ **Component-specific sheets** with detailed metadata (flows, views, roles, forms, web resources, etc.)
+- ✅ **Unmanaged component detection** - Find orphaned components not in any solution
 - ✅ **In-memory data collection** for fast cross-solution analysis
 - ✅ **Environment-dated output folders** for multi-environment tracking
 - ✅ **Professional Excel formatting** with auto-sized columns
@@ -305,11 +307,92 @@ Environment-wide metrics:
 - **Total Records** (across ALL tables)
 - Components Reused Across Solutions
 
+**NEW - Unmanaged Components Section:**
+- Unmanaged Tables (custom tables not in any solution)
+- Unmanaged Flows (workflows/flows not in any solution)
+- Unmanaged Canvas Apps (canvas apps not in any solution)
+- Unmanaged Web Resources (JS/HTML/CSS files not in any solution)
+- Unmanaged Forms (forms not in any solution)
+- Unmanaged Option Sets (global option sets not in any solution)
+- **Total Unmanaged Components**
+
 **Use Cases:**
 - Environment health check
 - Capacity planning
 - Executive reporting
 - Cleanup prioritization
+- **ALM compliance** - Identify orphaned components
+- **Pre-migration audit** - Find components that won't be exported
+
+### Sheets 6-11: Unmanaged Components (RED Headers)
+
+**Note:** These sheets only appear if unmanaged components are found.
+
+These sheets identify custom components that are **NOT** in any solution - these are "orphaned" or "loose" components that exist directly in the environment.
+
+#### Sheet 6: Unmanaged Tables
+Custom tables not in any solution:
+- Table Name, Logical Name, Schema Name
+- **Record Count** (shows data impact)
+- Primary ID, Metadata ID
+
+**Why This Matters:**
+- These tables won't be exported with solutions
+- Must be manually migrated or added to solutions
+- May represent development/testing artifacts
+- Could be outdated or abandoned customizations
+
+#### Sheet 7: Unmanaged Flows
+Workflows/flows not in any solution:
+- Name, Unique Name, Category, State
+- Primary Entity, Created On, Workflow ID
+
+**Common Causes:**
+- Flows created directly in the maker portal
+- Test flows that were never solutioned
+- Personal automation not intended for ALM
+
+#### Sheet 8: Unmanaged Canvas Apps
+Canvas apps not in any solution:
+- Display Name, Name, Created On, Canvas App ID
+
+**Impact:**
+- These apps won't be included in solution exports
+- Must be added to solutions for proper ALM
+
+#### Sheet 9: Unmanaged Web Resources
+JS/HTML/CSS files not in any solution:
+- Name, Display Name, Type, Created On, Web Resource ID
+
+**Common Issues:**
+- Leftover files from old customizations
+- Test scripts that were never cleaned up
+- May cause bloat in environment
+
+#### Sheet 10: Unmanaged Forms
+Forms not in any solution:
+- Name, Entity, Type (Main, Quick Create, etc.), Created On, Form ID
+
+**Typical Scenario:**
+- Forms created during customization testing
+- Backup forms that were never deleted
+- Forms from disabled features
+
+#### Sheet 11: Unmanaged Option Sets
+Global option sets not in any solution:
+- Name, Display Name, Metadata ID
+
+**Why Review:**
+- Global option sets should typically be in solutions
+- Unmanaged option sets complicate migrations
+- May indicate incomplete solution setup
+
+**Key Benefits of Unmanaged Component Detection:**
+- ✅ **ALM Compliance** - Ensure everything is properly solutioned
+- ✅ **Migration Readiness** - Know what won't export with solutions
+- ✅ **Environment Cleanup** - Identify orphaned artifacts
+- ✅ **Governance** - Track unsolutioned customizations
+- ✅ **Accurate Analysis** - Uses the same data collected for solution analysis
 
 ---
 
@@ -564,29 +647,67 @@ Fetching metadata and record counts...
 
 **Time:** ~2-5 minutes (depends on table count and data volume)
 
-### Step 4: Creating Master Workbook
+### Step 4: Finding Unmanaged Components
 ```
-STEP 4: CREATING MASTER WORKBOOK
+STEP 4: FINDING UNMANAGED COMPONENTS
+======================================================================
+  Total components in solutions: 3,847
+
+  Finding unmanaged tables... ✓ Found 15 unmanaged tables
+  Finding unmanaged flows... ✓ Found 23 unmanaged flows
+  Finding unmanaged canvas apps... ✓ Found 8 unmanaged canvas apps
+  Finding unmanaged web resources... ✓ Found 47 unmanaged web resources
+  Finding unmanaged forms... ✓ Found 12 unmanaged forms
+  Finding unmanaged option sets... ✓ Found 5 unmanaged option sets
+
+  Total unmanaged components: 110
+```
+
+**What's happening:**
+- Creates a lookup set of all component IDs in solutions
+- Queries each component type (tables, flows, apps, web resources, forms, option sets)
+- Checks each component against the solution lookup
+- Identifies components that are **NOT** in any solution
+- These are "orphaned" or "loose" components
+
+**Why This Matters:**
+- Unmanaged components won't be exported with solutions
+- Helps identify cleanup targets
+- Essential for ALM compliance
+- Migration readiness check
+
+**Time:** ~30-60 seconds
+
+### Step 5: Creating Master Workbook
+```
+STEP 5: CREATING MASTER WORKBOOK
 ======================================================================
   Creating All Solutions Summary...
   Creating All Tables Master List...
   Creating Component Reuse Analysis...
   Creating Table Ownership Map...
   Creating Statistics...
+  Creating Unmanaged Tables sheet...
+  Creating Unmanaged Flows sheet...
+  Creating Unmanaged Canvas Apps sheet...
+  Creating Unmanaged Web Resources sheet...
+  Creating Unmanaged Forms sheet...
+  Creating Unmanaged Option Sets sheet...
 
 ✓ Master workbook created: MASTER_Analysis_20260112.xlsx
 ```
 
 **What's happening:**
-- Generates 5 analysis sheets
+- Generates 5 core analysis sheets
+- Adds unmanaged component sheets (RED headers) if any found
 - All data already in memory (fast)
 - Applies formatting and auto-sizing
 
-**Time:** ~10-15 seconds
+**Time:** ~10-20 seconds
 
-### Step 5: Creating Individual Workbooks
+### Step 6: Creating Individual Workbooks
 ```
-STEP 5: CREATING INDIVIDUAL SOLUTION WORKBOOKS
+STEP 6: CREATING INDIVIDUAL SOLUTION WORKBOOKS
 ======================================================================
 [1/25] Location Management...
       Fetching component names... ✓
@@ -650,25 +771,32 @@ STEP 5: CREATING INDIVIDUAL SOLUTION WORKBOOKS
 ### Performance Characteristics
 
 **Small Environment** (5-10 solutions, 50 tables, ~500 components)
-- Runtime: ~3-5 minutes
-  - Steps 1-4 (Data Collection + Master): ~2-3 minutes
-  - Step 5 (Individual Workbooks): ~1-2 minutes
+- Runtime: ~3-6 minutes
+  - Steps 1-3 (Data Collection): ~2-3 minutes
+  - Step 4 (Unmanaged Components): ~30 seconds
+  - Step 5 (Master Workbook): ~10-15 seconds
+  - Step 6 (Individual Workbooks): ~1-2 minutes
 - Memory: ~50-100 MB
 
 **Medium Environment** (20-30 solutions, 150 tables, ~3,000 components)
-- Runtime: ~8-12 minutes
-  - Steps 1-4 (Data Collection + Master): ~5-7 minutes
-  - Step 5 (Individual Workbooks): ~3-5 minutes
+- Runtime: ~9-13 minutes
+  - Steps 1-3 (Data Collection): ~5-7 minutes
+  - Step 4 (Unmanaged Components): ~45-60 seconds
+  - Step 5 (Master Workbook): ~15-20 seconds
+  - Step 6 (Individual Workbooks): ~3-5 minutes
 - Memory: ~150-250 MB
 
 **Large Environment** (50+ solutions, 300+ tables, ~8,000 components)
-- Runtime: ~15-25 minutes
-  - Steps 1-4 (Data Collection + Master): ~10-15 minutes
-  - Step 5 (Individual Workbooks): ~5-10 minutes
+- Runtime: ~16-26 minutes
+  - Steps 1-3 (Data Collection): ~10-15 minutes
+  - Step 4 (Unmanaged Components): ~60-90 seconds
+  - Step 5 (Master Workbook): ~20-30 seconds
+  - Step 6 (Individual Workbooks): ~5-10 minutes
 - Memory: ~500 MB - 1 GB
 
 **Performance Notes:**
-- Component name fetching adds ~1-3 minutes per solution in Step 5
+- Component name fetching adds ~1-3 minutes per solution in Step 6
+- Unmanaged component detection (Step 4) is very fast due to in-memory lookup
 - Caching reduces duplicate API calls significantly
 - Network speed impacts API call times
 - Component metadata (flows, views, roles) takes longer than simple IDs
@@ -724,16 +852,48 @@ STEP 5: CREATING INDIVIDUAL SOLUTION WORKBOOKS
 **Steps:**
 1. Export from source environment
 2. Review Master > Statistics sheet
-3. Review Master > All Tables for data volumes
-4. Identify high-impact tables/solutions
-5. Plan migration phases by data volume
+3. **Review Unmanaged Components sheets** (items that won't migrate with solutions)
+4. Review Master > All Tables for data volumes
+5. Identify high-impact tables/solutions
+6. Plan migration phases by data volume
 
 **Key Metrics:**
 - Total Records (overall data volume)
 - Tables by solution (migration chunks)
 - Component Reuse (dependencies to preserve)
+- **Unmanaged Components (manual migration required)**
 
-### 2. Solution Consolidation
+**Critical Check:**
+- Review all Unmanaged component sheets
+- Decide: Add to solutions or migrate manually?
+- Document manual migration steps
+
+### 2. ALM Compliance & Cleanup
+**Goal:** Ensure everything is properly solutioned
+
+**Steps:**
+1. Export current environment
+2. Open Master > Statistics
+3. Review "Unmanaged Components" section
+4. For each unmanaged component type:
+   - Open the specific sheet (e.g., Unmanaged Tables)
+   - Identify owner/creator
+   - Decide: Add to solution, delete, or document exception
+5. Create action plan for each unmanaged component
+
+**Key Sheets:**
+- Unmanaged Tables (orphaned custom entities)
+- Unmanaged Flows (automation not in solutions)
+- Unmanaged Web Resources (loose script files)
+- Unmanaged Forms (orphaned forms)
+
+**Common Actions:**
+- Add to existing solution
+- Create new solution for component
+- Delete if no longer needed
+- Document as known exception
+
+### 3. Solution Consolidation
 **Goal:** Reduce number of solutions
 
 **Steps:**
@@ -748,7 +908,7 @@ STEP 5: CREATING INDIVIDUAL SOLUTION WORKBOOKS
 - Component Reuse (find duplicates)
 - Table Ownership (avoid conflicts)
 
-### 3. Environment Documentation
+### 4. Environment Documentation
 **Goal:** Document current state for audit/compliance
 
 **Steps:**
@@ -756,13 +916,15 @@ STEP 5: CREATING INDIVIDUAL SOLUTION WORKBOOKS
 2. Archive timestamped folders
 3. Compare Master workbooks across environments
 4. Review Individual workbooks for solution details
+5. **Document unmanaged components per environment**
 
 **Key Deliverables:**
 - Master Analysis (executive summary)
 - Individual workbooks (technical details)
 - Timestamped archives (version history)
+- **Unmanaged component inventory**
 
-### 4. Data Volume Analysis
+### 5. Data Volume Analysis
 **Goal:** Understand data footprint by solution
 
 **Steps:**
@@ -777,7 +939,7 @@ STEP 5: CREATING INDIVIDUAL SOLUTION WORKBOOKS
 - Which tables need archival before migration?
 - Which solutions can be excluded from backups?
 
-### 5. Dependency Discovery
+### 6. Dependency Discovery
 **Goal:** Find cross-solution dependencies
 
 **Steps:**
@@ -791,7 +953,7 @@ STEP 5: CREATING INDIVIDUAL SOLUTION WORKBOOKS
 - Core tables in many solutions (risk of conflicts)
 - Components shared across 5+ solutions (coupling)
 
-### 6. Cleanup Planning
+### 7. Cleanup Planning
 **Goal:** Identify unused/empty components
 
 **Steps:**
@@ -799,13 +961,24 @@ STEP 5: CREATING INDIVIDUAL SOLUTION WORKBOOKS
 2. Review Master > All Tables
 3. Filter by Record Count = 0 or N/A
 4. Review Master > Statistics > Empty Tables
-5. Identify solutions with empty tables
-6. Plan cleanup/removal
+5. **Review all Unmanaged Components sheets**
+6. Identify solutions with empty tables
+7. **Identify orphaned components to delete**
+8. Plan cleanup/removal
 
 **Cleanup Targets:**
 - Empty tables (no data)
-- Tables in multiple solutions (duplicates)
-- Old solutions with zero data impact
+- **Unmanaged flows** (test automation never solutioned)
+- **Unmanaged web resources** (old JS/CSS files)
+- **Unmanaged forms** (backup/test forms)
+- Tables with < 10 records (potential test data)
+
+**Questions to Ask:**
+- Is this component still used?
+- Who created it and when?
+- Is it referenced by active solutions?
+- **Why isn't it in a solution?**
+- Can it be safely deleted?
 
 ---
 
@@ -1114,6 +1287,131 @@ Common requests (not currently implemented):
 
 ---
 
+## Practical Examples: Unmanaged Components
+
+### Example 1: Pre-Migration Cleanup
+
+**Scenario:** Migrating environment from DEV to PROD
+
+**Steps:**
+1. Run analysis: `python3 solution_exporter_with_master.py --url https://dev.crm.dynamics.com`
+2. Open `MASTER_Analysis_{date}.xlsx`
+3. Check Statistics sheet - shows 47 unmanaged components
+4. Review each unmanaged component sheet:
+
+**Unmanaged Tables Sheet:**
+```
+ContactHistory     | cr123_contacthistory  | 1,523 records
+TempCalculations   | cr123_tempcalc        | 0 records
+TestData           | cr123_testdata        | 45 records
+```
+
+**Decision:**
+- ContactHistory → Add to "Core Extensions" solution
+- TempCalculations → Delete (empty, no longer used)
+- TestData → Delete (test data not for PROD)
+
+**Unmanaged Web Resources Sheet:**
+```
+dev_testscript.js  | JavaScript  | 2024-03-15
+old_styles.css     | CSS         | 2023-11-20
+```
+
+**Decision:**
+- Both → Delete (leftover from old development)
+
+**Result:** Clean environment ready for migration
+
+### Example 2: ALM Compliance Audit
+
+**Scenario:** Quarterly compliance check
+
+**Steps:**
+1. Run analysis on PROD environment
+2. Open Statistics sheet
+3. Section shows:
+   - Unmanaged Tables: 3
+   - Unmanaged Flows: 8
+   - Unmanaged Canvas Apps: 2
+   - Total Unmanaged: 13
+
+**Investigation:**
+Open each unmanaged sheet, note GUIDs, research in Power Platform:
+- 3 tables created by users directly (not through solutions)
+- 8 flows created in maker portal (personal automation)
+- 2 canvas apps in development (not production-ready)
+
+**Action Plan:**
+- Email users to add components to solutions
+- Document deadline for compliance
+- Schedule follow-up audit in 30 days
+
+### Example 3: Environment Cleanup Project
+
+**Scenario:** Reduce environment bloat
+
+**Steps:**
+1. Run analysis
+2. Check Statistics:
+   - Unmanaged Web Resources: 127 (!!)
+   - Unmanaged Forms: 34
+   
+**Investigation:**
+Open Unmanaged Web Resources sheet, filter by Created On:
+- 85 files from 2022-2023 (likely obsolete)
+- 42 files from 2024 (investigate)
+
+**Action:**
+- Research 2024 files → 15 still in use, add to solutions
+- Delete all 2022-2023 files after backup
+- Document deleted resources
+
+**Result:** Reduced from 127 → 15 unmanaged web resources
+
+### Example 4: Finding Component Owners
+
+**Scenario:** Who created these unmanaged components?
+
+**Steps:**
+1. Run analysis, find 23 unmanaged flows
+2. Note the Workflow IDs from Unmanaged Flows sheet
+3. Use Power Platform API to query audit data:
+
+```powershell
+# Example PowerShell to find creator
+$workflowId = "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+Get-CrmRecords -EntityLogicalName workflow -FilterAttribute workflowid -FilterOperator eq -FilterValue $workflowId -Fields createdby,createdon
+```
+
+**Result:** Identify creators, reach out for solution ownership
+
+### Example 5: Comparing Environments
+
+**Scenario:** Compare DEV vs PROD for unmanaged components
+
+**Steps:**
+1. Run analysis on both environments
+2. Compare Statistics sheets:
+
+**DEV Environment:**
+- Unmanaged Tables: 15
+- Unmanaged Flows: 34
+- Total Unmanaged: 89
+
+**PROD Environment:**
+- Unmanaged Tables: 3
+- Unmanaged Flows: 5
+- Total Unmanaged: 11
+
+**Analysis:**
+- DEV has appropriate unmanaged components (development/testing)
+- PROD is clean (expected for production)
+- Those 11 unmanaged components in PROD need investigation
+
+**Action:** Review PROD unmanaged components, add to solutions or delete
+
+---
+
 ## Quick Reference
 
 ### Installation
@@ -1132,13 +1430,26 @@ python3 solution_exporter_with_master.py --url https://yourorg.crm.dynamics.com
 ```
 
 ### Key Files
-- `MASTER_Analysis_{YYYYMMDD}.xlsx` - Cross-solution analysis
+- `MASTER_Analysis_{YYYYMMDD}.xlsx` - Cross-solution analysis + Unmanaged components
 - `{SolutionName}/{SolutionName}_{date}.xlsx` - Individual solution details
 
+### Master Workbook Sheets
+- All Solutions (component counts + record totals)
+- All Tables (record counts for all tables)
+- Component Reuse (shared components)
+- Table Ownership (tables by solution)
+- Statistics (environment metrics + **unmanaged counts**)
+- **Unmanaged Tables** (RED header - custom tables not in solutions)
+- **Unmanaged Flows** (RED header - flows not in solutions)
+- **Unmanaged Canvas Apps** (RED header - apps not in solutions)
+- **Unmanaged Web Resources** (RED header - files not in solutions)
+- **Unmanaged Forms** (RED header - forms not in solutions)
+- **Unmanaged Option Sets** (RED header - option sets not in solutions)
+
 ### Typical Runtime
-- Small: 2-3 minutes
-- Medium: 5-7 minutes  
-- Large: 10-15 minutes
+- Small: 3-6 minutes
+- Medium: 9-13 minutes  
+- Large: 16-26 minutes
 
 ### Authentication
 - Device code flow (interactive)
