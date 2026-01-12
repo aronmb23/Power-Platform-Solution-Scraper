@@ -1,4 +1,4 @@
-# Power Platform Solution Exporter - Usage Guide
+# Power Platform Solution Scraper- Usage Guide
 
 ## Overview
 
