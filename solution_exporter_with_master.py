@@ -2,7 +2,7 @@
 """
 Power Platform Solution Component Exporter - Master Analysis Version
 
-This performs the following action:
+This version:
 1. Collects ALL solution data in memory first
 2. Performs cross-solution analysis
 3. Creates individual solution workbooks
@@ -95,6 +95,14 @@ class MasterSolutionAnalyzer:
         # Caches
         self.component_cache = {}
         self.record_count_cache = {}
+        
+        # Unmanaged components storage
+        self.unmanaged_tables = []
+        self.unmanaged_flows = []
+        self.unmanaged_canvas_apps = []
+        self.unmanaged_web_resources = []
+        self.unmanaged_forms = []
+        self.unmanaged_optionsets = []
     
     def _extract_environment_name(self, url):
         """Extract environment name from Dataverse URL"""
@@ -484,10 +492,183 @@ class MasterSolutionAnalyzer:
         
         print(f"\n✓ Analyzed {len(self.all_tables)} tables\n")
     
+    def find_unmanaged_components(self):
+        """Find components that are NOT in any solution"""
+        print("="*70)
+        print("STEP 4: FINDING UNMANAGED COMPONENTS")
+        print("="*70 + "\n")
+        
+        # Collect all component IDs that ARE in solutions
+        solution_components = set()
+        for solution_id, components in self.all_components.items():
+            for comp in components:
+                comp_key = f"{comp['componenttype']}_{comp['objectid']}"
+                solution_components.add(comp_key)
+        
+        print(f"  Total components in solutions: {len(solution_components)}\n")
+        
+        # Storage for unmanaged components
+        self.unmanaged_tables = []
+        self.unmanaged_flows = []
+        self.unmanaged_canvas_apps = []
+        self.unmanaged_web_resources = []
+        self.unmanaged_forms = []
+        self.unmanaged_optionsets = []
+        
+        # Find unmanaged tables
+        print("  Finding unmanaged tables...", end=' ', flush=True)
+        for logical_name, table_info in self.all_tables.items():
+            comp_key = f"1_{table_info['ObjectId']}"
+            if comp_key not in solution_components and table_info['IsCustomEntity']:
+                self.unmanaged_tables.append(table_info)
+        print(f"✓ Found {len(self.unmanaged_tables)} unmanaged tables")
+        
+        # Find unmanaged flows
+        print("  Finding unmanaged flows...", end=' ', flush=True)
+        query = f"{self.api_url}/workflows"
+        params = {
+            '$select': 'workflowid,name,uniquename,description,category,primaryentity,type,statecode,ismanaged,createdon,modifiedon',
+            '$filter': 'ismanaged eq false',
+            '$top': 5000
+        }
+        try:
+            response = requests.get(query, headers=self.get_headers(), params=params, timeout=30)
+            if response.status_code == 200:
+                flows = response.json().get('value', [])
+                for flow in flows:
+                    comp_key = f"29_{flow['workflowid']}"
+                    if comp_key not in solution_components:
+                        self.unmanaged_flows.append({
+                            'Name': flow.get('name', ''),
+                            'UniqueName': flow.get('uniquename', ''),
+                            'Category': flow.get('category', 0),
+                            'State': 'Active' if flow.get('statecode', 0) == 1 else 'Draft',
+                            'PrimaryEntity': flow.get('primaryentity', ''),
+                            'CreatedOn': flow.get('createdon', '')[:10] if flow.get('createdon') else '',
+                            'WorkflowId': str(flow['workflowid'])
+                        })
+        except:
+            pass
+        print(f"✓ Found {len(self.unmanaged_flows)} unmanaged flows")
+        
+        # Find unmanaged canvas apps
+        print("  Finding unmanaged canvas apps...", end=' ', flush=True)
+        query = f"{self.api_url}/canvasapps"
+        params = {
+            '$select': 'canvasappid,name,displayname,description,createdon,modifiedon',
+            '$top': 5000
+        }
+        try:
+            response = requests.get(query, headers=self.get_headers(), params=params, timeout=30)
+            if response.status_code == 200:
+                apps = response.json().get('value', [])
+                for app in apps:
+                    comp_key = f"300_{app['canvasappid']}"
+                    if comp_key not in solution_components:
+                        self.unmanaged_canvas_apps.append({
+                            'DisplayName': app.get('displayname', ''),
+                            'Name': app.get('name', ''),
+                            'CreatedOn': app.get('createdon', '')[:10] if app.get('createdon') else '',
+                            'CanvasAppId': str(app['canvasappid'])
+                        })
+        except:
+            pass
+        print(f"✓ Found {len(self.unmanaged_canvas_apps)} unmanaged canvas apps")
+        
+        # Find unmanaged web resources
+        print("  Finding unmanaged web resources...", end=' ', flush=True)
+        query = f"{self.api_url}/webresources"
+        params = {
+            '$select': 'webresourceid,name,displayname,webresourcetype,ismanaged,createdon',
+            '$filter': 'ismanaged eq false',
+            '$top': 5000
+        }
+        try:
+            response = requests.get(query, headers=self.get_headers(), params=params, timeout=30)
+            if response.status_code == 200:
+                resources = response.json().get('value', [])
+                web_resource_types = {
+                    1: 'HTML', 2: 'CSS', 3: 'JavaScript', 4: 'XML', 5: 'PNG',
+                    6: 'JPG', 7: 'GIF', 8: 'XAP', 9: 'XSL', 10: 'ICO', 11: 'SVG', 12: 'RESX'
+                }
+                for resource in resources:
+                    comp_key = f"61_{resource['webresourceid']}"
+                    if comp_key not in solution_components:
+                        self.unmanaged_web_resources.append({
+                            'Name': resource.get('name', ''),
+                            'DisplayName': resource.get('displayname', ''),
+                            'Type': web_resource_types.get(resource.get('webresourcetype', 0), 'Unknown'),
+                            'CreatedOn': resource.get('createdon', '')[:10] if resource.get('createdon') else '',
+                            'WebResourceId': str(resource['webresourceid'])
+                        })
+        except:
+            pass
+        print(f"✓ Found {len(self.unmanaged_web_resources)} unmanaged web resources")
+        
+        # Find unmanaged forms
+        print("  Finding unmanaged forms...", end=' ', flush=True)
+        query = f"{self.api_url}/systemforms"
+        params = {
+            '$select': 'formid,name,objecttypecode,type,ismanaged,createdon',
+            '$filter': 'ismanaged eq false',
+            '$top': 5000
+        }
+        try:
+            response = requests.get(query, headers=self.get_headers(), params=params, timeout=30)
+            if response.status_code == 200:
+                forms = response.json().get('value', [])
+                form_types = {2: 'Main', 6: 'Quick View', 7: 'Quick Create', 11: 'Card'}
+                for form in forms:
+                    comp_key = f"60_{form['formid']}"
+                    if comp_key not in solution_components:
+                        self.unmanaged_forms.append({
+                            'Name': form.get('name', ''),
+                            'Entity': form.get('objecttypecode', ''),
+                            'Type': form_types.get(form.get('type', 0), f"Type {form.get('type', 0)}"),
+                            'CreatedOn': form.get('createdon', '')[:10] if form.get('createdon') else '',
+                            'FormId': str(form['formid'])
+                        })
+        except:
+            pass
+        print(f"✓ Found {len(self.unmanaged_forms)} unmanaged forms")
+        
+        # Find unmanaged option sets
+        print("  Finding unmanaged option sets...", end=' ', flush=True)
+        query = f"{self.api_url}/GlobalOptionSetDefinitions"
+        params = {
+            '$select': 'MetadataId,Name,DisplayName,IsManaged'
+        }
+        try:
+            response = requests.get(query, headers=self.get_headers(), params=params, timeout=30)
+            if response.status_code == 200:
+                optionsets = response.json().get('value', [])
+                for optionset in optionsets:
+                    if optionset.get('IsManaged', False):
+                        continue
+                    comp_key = f"9_{optionset['MetadataId']}"
+                    if comp_key not in solution_components:
+                        display_name = optionset.get('DisplayName', {})
+                        if isinstance(display_name, dict):
+                            display_name = display_name.get('UserLocalizedLabel', {}).get('Label', optionset.get('Name', ''))
+                        self.unmanaged_optionsets.append({
+                            'Name': optionset.get('Name', ''),
+                            'DisplayName': display_name,
+                            'MetadataId': str(optionset['MetadataId'])
+                        })
+        except:
+            pass
+        print(f"✓ Found {len(self.unmanaged_optionsets)} unmanaged option sets")
+        
+        total_unmanaged = (len(self.unmanaged_tables) + len(self.unmanaged_flows) + 
+                          len(self.unmanaged_canvas_apps) + len(self.unmanaged_web_resources) +
+                          len(self.unmanaged_forms) + len(self.unmanaged_optionsets))
+        
+        print(f"\n  Total unmanaged components: {total_unmanaged}\n")
+    
     def create_master_workbook(self, output_dir):
         """Create master analysis workbook"""
         print("="*70)
-        print("STEP 4: CREATING MASTER WORKBOOK")
+        print("STEP 5: CREATING MASTER WORKBOOK")
         print("="*70 + "\n")
         
         filepath = output_dir / f"MASTER_Analysis_{datetime.now().strftime('%Y%m%d')}.xlsx"
@@ -682,9 +863,194 @@ class MasterSolutionAnalyzer:
         ws_stats.append(['Empty Tables', total_tables - tables_with_data])
         ws_stats.append(['Total Records (All Tables)', f"{total_records:,}"])
         ws_stats.append(['Components Reused Across Solutions', len([c for c, s in self.component_reuse.items() if len(s) > 1])])
+        ws_stats.append(['', ''])
+        ws_stats.append(['UNMANAGED COMPONENTS (Not in any solution)', ''])
+        ws_stats.append(['Unmanaged Tables', len(self.unmanaged_tables)])
+        ws_stats.append(['Unmanaged Flows', len(self.unmanaged_flows)])
+        ws_stats.append(['Unmanaged Canvas Apps', len(self.unmanaged_canvas_apps)])
+        ws_stats.append(['Unmanaged Web Resources', len(self.unmanaged_web_resources)])
+        ws_stats.append(['Unmanaged Forms', len(self.unmanaged_forms)])
+        ws_stats.append(['Unmanaged Option Sets', len(self.unmanaged_optionsets)])
+        
+        total_unmanaged = (len(self.unmanaged_tables) + len(self.unmanaged_flows) + 
+                          len(self.unmanaged_canvas_apps) + len(self.unmanaged_web_resources) +
+                          len(self.unmanaged_forms) + len(self.unmanaged_optionsets))
+        ws_stats.append(['Total Unmanaged Components', total_unmanaged])
         
         ws_stats.column_dimensions['A'].width = 40
         ws_stats.column_dimensions['B'].width = 30
+        
+        # SHEET 6: Unmanaged Tables
+        if self.unmanaged_tables:
+            print("  Creating Unmanaged Tables sheet...")
+            ws_unmgd_tables = wb.create_sheet("Unmanaged Tables")
+            ws_unmgd_tables.append(['Table Name', 'Logical Name', 'Schema Name', 'Record Count', 'Primary ID', 'Metadata ID'])
+            
+            for row in ws_unmgd_tables['A1:F1']:
+                for cell in row:
+                    cell.fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+                    cell.font = Font(color="FFFFFF", bold=True)
+            
+            for table in sorted(self.unmanaged_tables, key=lambda x: x['DisplayName']):
+                record_count_display = f"{table['RecordCount']:,}" if table['RecordCount'] is not None else "N/A"
+                ws_unmgd_tables.append([
+                    table['DisplayName'],
+                    table['LogicalName'],
+                    table['SchemaName'],
+                    record_count_display,
+                    table['PrimaryIdAttribute'],
+                    table['MetadataId']
+                ])
+            
+            for column in ws_unmgd_tables.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                ws_unmgd_tables.column_dimensions[column_letter].width = min(max_length + 2, 50)
+        
+        # SHEET 7: Unmanaged Flows
+        if self.unmanaged_flows:
+            print("  Creating Unmanaged Flows sheet...")
+            ws_unmgd_flows = wb.create_sheet("Unmanaged Flows")
+            ws_unmgd_flows.append(['Name', 'Unique Name', 'Category', 'State', 'Primary Entity', 'Created On', 'Workflow ID'])
+            
+            for row in ws_unmgd_flows['A1:G1']:
+                for cell in row:
+                    cell.fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+                    cell.font = Font(color="FFFFFF", bold=True)
+            
+            category_map = {0: 'Workflow', 1: 'Dialog', 2: 'Business Rule', 3: 'Action', 
+                           4: 'Business Process Flow', 5: 'Modern Flow', 6: 'Desktop Flow'}
+            
+            for flow in sorted(self.unmanaged_flows, key=lambda x: x['Name']):
+                ws_unmgd_flows.append([
+                    flow['Name'],
+                    flow['UniqueName'],
+                    category_map.get(flow['Category'], f"Category {flow['Category']}"),
+                    flow['State'],
+                    flow['PrimaryEntity'],
+                    flow['CreatedOn'],
+                    flow['WorkflowId']
+                ])
+            
+            for column in ws_unmgd_flows.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                ws_unmgd_flows.column_dimensions[column_letter].width = min(max_length + 2, 50)
+        
+        # SHEET 8: Unmanaged Canvas Apps
+        if self.unmanaged_canvas_apps:
+            print("  Creating Unmanaged Canvas Apps sheet...")
+            ws_unmgd_apps = wb.create_sheet("Unmanaged Canvas Apps")
+            ws_unmgd_apps.append(['Display Name', 'Name', 'Created On', 'Canvas App ID'])
+            
+            for row in ws_unmgd_apps['A1:D1']:
+                for cell in row:
+                    cell.fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+                    cell.font = Font(color="FFFFFF", bold=True)
+            
+            for app in sorted(self.unmanaged_canvas_apps, key=lambda x: x['DisplayName']):
+                ws_unmgd_apps.append([
+                    app['DisplayName'],
+                    app['Name'],
+                    app['CreatedOn'],
+                    app['CanvasAppId']
+                ])
+            
+            for column in ws_unmgd_apps.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                ws_unmgd_apps.column_dimensions[column_letter].width = min(max_length + 2, 50)
+        
+        # SHEET 9: Unmanaged Web Resources
+        if self.unmanaged_web_resources:
+            print("  Creating Unmanaged Web Resources sheet...")
+            ws_unmgd_wr = wb.create_sheet("Unmanaged Web Resources")
+            ws_unmgd_wr.append(['Name', 'Display Name', 'Type', 'Created On', 'Web Resource ID'])
+            
+            for row in ws_unmgd_wr['A1:E1']:
+                for cell in row:
+                    cell.fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+                    cell.font = Font(color="FFFFFF", bold=True)
+            
+            for wr in sorted(self.unmanaged_web_resources, key=lambda x: x['Name']):
+                ws_unmgd_wr.append([
+                    wr['Name'],
+                    wr['DisplayName'],
+                    wr['Type'],
+                    wr['CreatedOn'],
+                    wr['WebResourceId']
+                ])
+            
+            for column in ws_unmgd_wr.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                ws_unmgd_wr.column_dimensions[column_letter].width = min(max_length + 2, 50)
+        
+        # SHEET 10: Unmanaged Forms
+        if self.unmanaged_forms:
+            print("  Creating Unmanaged Forms sheet...")
+            ws_unmgd_forms = wb.create_sheet("Unmanaged Forms")
+            ws_unmgd_forms.append(['Name', 'Entity', 'Type', 'Created On', 'Form ID'])
+            
+            for row in ws_unmgd_forms['A1:E1']:
+                for cell in row:
+                    cell.fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+                    cell.font = Font(color="FFFFFF", bold=True)
+            
+            for form in sorted(self.unmanaged_forms, key=lambda x: x['Name']):
+                ws_unmgd_forms.append([
+                    form['Name'],
+                    form['Entity'],
+                    form['Type'],
+                    form['CreatedOn'],
+                    form['FormId']
+                ])
+            
+            for column in ws_unmgd_forms.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                ws_unmgd_forms.column_dimensions[column_letter].width = min(max_length + 2, 50)
+        
+        # SHEET 11: Unmanaged Option Sets
+        if self.unmanaged_optionsets:
+            print("  Creating Unmanaged Option Sets sheet...")
+            ws_unmgd_os = wb.create_sheet("Unmanaged Option Sets")
+            ws_unmgd_os.append(['Name', 'Display Name', 'Metadata ID'])
+            
+            for row in ws_unmgd_os['A1:C1']:
+                for cell in row:
+                    cell.fill = PatternFill(start_color="C00000", end_color="C00000", fill_type="solid")
+                    cell.font = Font(color="FFFFFF", bold=True)
+            
+            for optionset in sorted(self.unmanaged_optionsets, key=lambda x: x['Name']):
+                ws_unmgd_os.append([
+                    optionset['Name'],
+                    optionset['DisplayName'],
+                    optionset['MetadataId']
+                ])
+            
+            for column in ws_unmgd_os.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                ws_unmgd_os.column_dimensions[column_letter].width = min(max_length + 2, 50)
         
         # Save
         wb.save(filepath)
@@ -1427,7 +1793,7 @@ class MasterSolutionAnalyzer:
     def create_all_individual_workbooks(self, output_dir):
         """Create individual workbooks for each solution"""
         print("="*70)
-        print("STEP 5: CREATING INDIVIDUAL SOLUTION WORKBOOKS")
+        print("STEP 6: CREATING INDIVIDUAL SOLUTION WORKBOOKS")
         print("="*70 + "\n")
         
         created_files = []
@@ -1460,10 +1826,13 @@ class MasterSolutionAnalyzer:
         # Step 3: Analyze tables
         self.analyze_all_tables()
         
-        # Step 4: Create master workbook
+        # Step 4: Find unmanaged components
+        self.find_unmanaged_components()
+        
+        # Step 5: Create master workbook
         master_file = self.create_master_workbook(output_dir)
         
-        # Step 5: Create individual solution workbooks
+        # Step 6: Create individual solution workbooks
         individual_files = self.create_all_individual_workbooks(output_dir)
         
         return master_file, individual_files
